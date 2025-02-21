@@ -1,0 +1,22 @@
+{
+  "transform": {
+    "^.+\\.(js|jsx|ts|tsx)$": "ts-jest"
+  },
+  "testEnvironment": "jsdom",
+  "setupFilesAfterEnv": ["@testing-library/jest-dom"],
+  "moduleFileExtensions": ["js", "jsx", "tsx"],
+  "testRegex": "/*.test.js$",
+  "collectCoverage": true,
+  "coverageReporters": ["lcov"],
+  "coverageDirectory": "coverage",
+  "coverageThreshold": {
+    "global": {
+      "branches": 0,
+      "functions": 0,
+      "lines": 0,
+      "statements": 0
+    }
+  },
+  "watchPathIgnorePatterns": ["<rootDir>/node_modules/", "<rootDir>/.git/"],
+  "moduleDirectories": ["node_modules", "src"]
+}
