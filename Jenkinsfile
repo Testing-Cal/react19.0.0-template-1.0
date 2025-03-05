@@ -693,7 +693,7 @@ pipeline {
                            }
                        }
                    }
-               } else if ("${list[i]}" == "'Destroy'" && env.ACTION == 'DESTROY') {
+               } else if ("${list[i]}" == "'Destroy'" && env.ACTION == 'DESTROY' && "$PUBLISH_ARTIFACT" == "false") {
                 stage('Destroy') {
                  if (env.DEPLOYMENT_TYPE == 'EC2') {
                    sh """ssh -o "StrictHostKeyChecking=no" ciuser@$DOCKERHOST "docker stop ${metadataVars.repoName} || true && docker rm ${JOB_BASE_NAME} || true" """
