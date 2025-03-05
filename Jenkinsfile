@@ -209,7 +209,7 @@ def agentLabel = "${env.JENKINS_AGENT == null ? "":env.JENKINS_AGENT}"
 pipeline {
   agent { label agentLabel }
   environment {
-    DEFAULT_STAGE_SEQ = "'Initialization','Build','UnitTests','SonarQubeScan','BuildContainerImage','ContainerImageScan','PublishContainerImage','Deploy','FunctionalTests','Destroy'"
+    DEFAULT_STAGE_SEQ = "'Initialization','Build','UnitTests','SonarQubeScan','BuildContainerImage','containerImageScan','PublishArtifact','PublishContainerImage','Deploy','FunctionalTests','Destroy'"
     CUSTOM_STAGE_SEQ = "${DYNAMIC_JENKINS_STAGE_SEQUENCE}"
     PROJECT_TEMPLATE_ACTIVE = "${DYNAMIC_JENKINS_STAGE_NEEDED}"
     LIST = "${env.PROJECT_TEMPLATE_ACTIVE == 'true' ? env.CUSTOM_STAGE_SEQ : env.DEFAULT_STAGE_SEQ}"
@@ -233,6 +233,7 @@ pipeline {
     KUBECTL_IMAGE_VERSION = "bitnami/kubectl:1.28" //https://hub.docker.com/r/bitnami/kubectl/tags
     HELM_IMAGE_VERSION = "alpine/helm:3.8.1" //https://hub.docker.com/r/alpine/helm/tags   
     OC_IMAGE_VERSION = "quay.io/openshift/origin-cli:4.9.0" //https://quay.io/repository/openshift/origin-cli?tab=tags
+    JFROGCLI_IMAGE_VERSION = "public.ecr.aws/lazsa/node-jf:16.13.2"
   }
   stages {
    stage('Initialization') {
@@ -257,6 +258,17 @@ pipeline {
             env.TESTINGTOOLTYPE = metadataVars.testingToolType
             env.BROWSERTYPE = metadataVars.browserType
              env.CONTAINERSCANTYPE = metadataVars.containerScanType
+
+            env.PUBLISH_ARTIFACT = metadataVars.artifactPublish ?: "false"
+            env.REPO_NAME = metadataVars.repoName
+            env.ARTIFACTORY_URL = metadataVars.artifactoryURL
+            repoProperties = parseJsonString(env.JENKINS_METADATA,'general')
+            if( metadataVars.artifactRepository){
+                artifactPathMetadata = parseJsonString(repoProperties,'artifactRepository')
+                artifactPathVars = parseJsonArray(artifactPathMetadata)
+                env.LIBRARY_REPO = artifactPathVars.release
+            }
+
 
          if (env.DEPLOYMENT_TYPE == 'KUBERNETES' || env.DEPLOYMENT_TYPE == 'OPENSHIFT') {
            String kubeProperties = parseJsonString(env.JENKINS_METADATA,'kubernetes')
@@ -361,7 +373,7 @@ pipeline {
                       }
                   }
                 }
-                else if ("${list[i]}" == "'ContainerImageScan'" && stage_flag['containerScan']) {
+                else if ("${list[i]}" == "'containerImageScan'" && stage_flag['containerScan'] && "$PUBLISH_ARTIFACT" == "false") {
                     stage("Container Image Scan") {
                         if (env.CONTAINERSCANTYPE == 'XRAY') {
                             jf 'docker scan $REGISTRY_URL:$BUILD_TAG'
@@ -387,14 +399,20 @@ pipeline {
 
                     }
 
-               }
-               else if ("${list[i]}" == "'Build'" && env.ACTION == 'DEPLOY') {
+               } else if ("${list[i]}" == "'Build'" && env.ACTION == 'DEPLOY') {
                 stage('Build') {
                  script {
                     echo "echoed BUILD_TAG--- $BUILD_TAG"
                  }
                 }
-               } else if ("${list[i]}" == "'BuildContainerImage'" && env.ACTION == 'DEPLOY') {
+               } else if ("${list[i]}" == "'PublishArtifact'" &&  "$PUBLISH_ARTIFACT" == "true") {
+                   stage('Publish Artifact') {
+                          withCredentials([usernamePassword(credentialsId: "$ARTIFACTORY_CREDENTIALS", usernameVariable: 'USERNAME', passwordVariable: 'PASSWORD')]) {
+                         sh """
+                         docker run --rm  -v "$WORKSPACE":/opt/"$REPO_NAME" -w /opt/"$REPO_NAME" "$JFROGCLI_IMAGE_VERSION" /bin/bash -c "jf c add jfrog --password "$PASSWORD" --user "$USERNAME" --url="$ARTIFACTORY_URL" --artifactory-url="$ARTIFACTORY_URL"/artifactory --interactive=false --overwrite=true ; jf npm-config --repo-deploy "$LIBRARY_REPO" --server-id-deploy jfrog; npm install ; jf npm publish"  """
+                       }
+                   }
+               } else if ("${list[i]}" == "'BuildContainerImage'" && env.ACTION == 'DEPLOY' && "$PUBLISH_ARTIFACT" == "false") {
                       stage('Build Container Image') {   // no changes
                           // stage details here
                           echo "echoed BUILD_TAG--- $BUILD_TAG"
@@ -415,7 +433,7 @@ pipeline {
                           sh 'docker build -t "$REGISTRY_URL:$BUILD_TAG" -t "$REGISTRY_URL:latest" --build-arg DEFAULT_PORT=$SERVICE_PORT --build-arg CONTEXT=$CONTEXT -f Dockerfile .'
 
                       }
-               } else if ("${list[i]}" == "'PublishContainerImage'" && (env.ACTION == 'DEPLOY' || env.ACTION == 'PROMOTE')) {
+               } else if ("${list[i]}" == "'PublishContainerImage'" && (env.ACTION == 'DEPLOY' || env.ACTION == 'PROMOTE') && "$PUBLISH_ARTIFACT" == "false") {
                        stage('Publish Container Image') {   // no changes
                            // stage details here
                               echo "Publish Container Image"
@@ -467,7 +485,7 @@ pipeline {
                              }
                        }
              }
-            else if ("${list[i]}" == "'Deploy'") {
+            else if ("${list[i]}" == "'Deploy'" && "$PUBLISH_ARTIFACT" == "false") {
                 stage('Deploy') {
                 if (env.ACTION == 'DEPLOY' || env.ACTION == 'PROMOTE' || env.ACTION == 'ROLLBACK') {
                   if (env.ACTION == 'ROLLBACK') {
@@ -660,7 +678,7 @@ pipeline {
                     }
                  }
                }
-                else if ("${list[i]}" == "'FunctionalTests'" && env.ACTION == 'DEPLOY' && stage_flag['FunctionalTesting']) {
+                else if ("${list[i]}" == "'FunctionalTests'" && env.ACTION == 'DEPLOY' && stage_flag['FunctionalTesting'] && "$PUBLISH_ARTIFACT" == "false") {
                    stage('Functional Tests') {
                        waitforsometime()
                        dir('testcaseRepo') {
