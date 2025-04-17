@@ -96,7 +96,8 @@ jobs:
           echo "$liveurl"
       
           runSeleniumTest() { 
-            docker run --rm -v "$GITHUB_WORKSPACE"/testcaseRepo:/usr/src/mymaven -w /usr/src/mymaven $JAVA_IMAGE_VERSION "$TESTCASECOMMAND -DSITE_URL=http://$liveurl$CONTEXT/ > maven_test.out || true"
+            docker run --rm -v "$GITHUB_WORKSPACE"/testcaseRepo:/usr/src/mymaven -w /usr/src/mymaven $JAVA_IMAGE_VERSION "$TESTCASECOMMAND -DSITE_URL=http://$liveurl$CONTEXT/"
+            #docker run --rm -v "$GITHUB_WORKSPACE"/testcaseRepo:/usr/src/mymaven -w /usr/src/mymaven $JAVA_IMAGE_VERSION "$TESTCASECOMMAND -DSITE_URL=http://$liveurl$CONTEXT/ > maven_test.out || true"
             # $TESTCASECOMMAND -DSITE_URL=http://$liveurl$CONTEXT/ > maven_test.out || true
             cat maven_test.out
             grep "^\[INFO\|^\[ERROR\] Tests run: " maven_test.out | cut -c 8- | awk 'BEGIN { for(i=1;i<=5;i++) printf "*+"; } {printf "%s", $0 } END { for(i=1;i<=5;i++) printf "*+"; }'
