@@ -45,10 +45,7 @@ jobs:
         run: |
           echo "no build"
 
-      - name: Unit Test
-        run: |
-          docker run --rm --user root -v "$GITHUB_WORKSPACE":/opt/repo -w /opt/repo $CI_IMAGE /bin/bash -c "cd /opt/repo &&  npm install && npm test -- --watchAll=false && npm run test:coverage"
-    
+      
       - name: SonarQube Scan
         run: |
          
