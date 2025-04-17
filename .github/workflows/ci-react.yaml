@@ -46,15 +46,15 @@ jobs:
           echo "no build"
 
       
-      - name: SonarQube Scan
-        run: |
+      # - name: SonarQube Scan
+      #   run: |
          
-          sed -i s+#SONAR_URL#+"$SONAR_HOST"+g ./sonar-project.properties
-          sed -i s+#SONAR_LOGIN#+"${{ secrets[env.SONAR_CREDENTIAL_ID] }}"+g ./sonar-project.properties
-          sed -i s+#RELEASE_NAME#+"$SONAR_PROJECT_KEY"+g ./sonar-project.properties
-          sed -i s+#SONAR_ORGANIZATION#+"$SONAR_ORG"+g ./sonar-project.properties
-          cat ./sonar-project.properties
-          docker run --rm --user root -v "$GITHUB_WORKSPACE":/opt/repo -w /opt/repo $CI_IMAGE /bin/bash -c "chown -R root:root /opt/repo && npm install sonarqube-scanner -f && npm run sonar"
+      #     sed -i s+#SONAR_URL#+"$SONAR_HOST"+g ./sonar-project.properties
+      #     sed -i s+#SONAR_LOGIN#+"${{ secrets[env.SONAR_CREDENTIAL_ID] }}"+g ./sonar-project.properties
+      #     sed -i s+#RELEASE_NAME#+"$SONAR_PROJECT_KEY"+g ./sonar-project.properties
+      #     sed -i s+#SONAR_ORGANIZATION#+"$SONAR_ORG"+g ./sonar-project.properties
+      #     cat ./sonar-project.properties
+      #     docker run --rm --user root -v "$GITHUB_WORKSPACE":/opt/repo -w /opt/repo $CI_IMAGE /bin/bash -c "chown -R root:root /opt/repo && npm install sonarqube-scanner -f && npm run sonar"
 
       - name: Build Container Image
         run: |
