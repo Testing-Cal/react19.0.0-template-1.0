@@ -8,6 +8,7 @@ jobs:
     environment:
       name: Dev
     env:
+      JAVA_IMAGE_VERSION: "maven:3.8.3-amazoncorretto-17"
       KUBECTL_IMAGE_VERSION: "bitnami/kubectl:1.28" #https://hub.docker.com/r/bitnami/kubectl/tags
       HELM_IMAGE_VERSION: "alpine/helm:3.8.1" #https://hub.docker.com/r/alpine/helm/tags
       OC_IMAGE_VERSION: "quay.io/openshift/origin-cli:4.9.0" #https://quay.io/repository/openshift/origin-cli?tab=tags
@@ -73,8 +74,8 @@ jobs:
           ref: ${{ env.TESTCASEREPOSITORYBRANCH }}
           path: ./testcaseRepo
 
-      - name: Setup Maven Action
-        uses: s4u/setup-maven-action@3.9.9
+      # - name: Setup Maven Action
+      #   uses: s4u/setup-maven-action@3.9.9
         
       - name: Functional Testing
         run: |
@@ -94,8 +95,9 @@ jobs:
           echo "SITE_URL under test: http://$liveurl$CONTEXT/"
           echo "$liveurl"
       
-          runSeleniumTest() {  
-            $TESTCASECOMMAND -DSITE_URL=http://$liveurl$CONTEXT/ > maven_test.out || true
+          runSeleniumTest() { 
+            docker run --rm -v "$GITHUB_WORKSPACE"/testcaseRepo:/opt/repo -w /opt/repo $JAVA_IMAGE_VERSION '$TESTCASECOMMAND -DSITE_URL=http://$liveurl$CONTEXT/ > maven_test.out || true'
+            # $TESTCASECOMMAND -DSITE_URL=http://$liveurl$CONTEXT/ > maven_test.out || true
             cat maven_test.out
             grep "^\[INFO\|^\[ERROR\] Tests run: " maven_test.out | cut -c 8- | awk 'BEGIN { for(i=1;i<=5;i++) printf "*+"; } {printf "%s", $0 } END { for(i=1;i<=5;i++) printf "*+"; }'
           }
