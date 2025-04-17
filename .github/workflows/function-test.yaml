@@ -96,7 +96,7 @@ jobs:
           echo "$liveurl"
       
           runSeleniumTest() { 
-            docker run --rm -v "$GITHUB_WORKSPACE"/testcaseRepo:/usr/src/mymaven -w /usr/src/mymaven $JAVA_IMAGE_VERSION "$TESTCASECOMMAND -DSITE_URL=http://$liveurl$CONTEXT/"
+            docker run --rm -v "$GITHUB_WORKSPACE"/testcaseRepo:/usr/src/mymaven -w /usr/src/mymaven $JAVA_IMAGE_VERSION bash -c "$TESTCASECOMMAND -DSITE_URL=http://$liveurl$CONTEXT/"
             #docker run --rm -v "$GITHUB_WORKSPACE"/testcaseRepo:/usr/src/mymaven -w /usr/src/mymaven $JAVA_IMAGE_VERSION "$TESTCASECOMMAND -DSITE_URL=http://$liveurl$CONTEXT/ > maven_test.out || true"
             # $TESTCASECOMMAND -DSITE_URL=http://$liveurl$CONTEXT/ > maven_test.out || true
             cat maven_test.out
