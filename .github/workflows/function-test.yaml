@@ -1,0 +1,174 @@
+name: functionaltest
+
+on: [workflow_dispatch]
+
+jobs:
+  Functional-Test:
+    runs-on: ${{ vars.RUNNER_NAME_DEV }}
+    environment:
+      name: Dev
+    env:
+      KUBECTL_IMAGE_VERSION: "bitnami/kubectl:1.28" #https://hub.docker.com/r/bitnami/kubectl/tags
+      HELM_IMAGE_VERSION: "alpine/helm:3.8.1" #https://hub.docker.com/r/alpine/helm/tags
+      OC_IMAGE_VERSION: "quay.io/openshift/origin-cli:4.9.0" #https://quay.io/repository/openshift/origin-cli?tab=tags
+
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v2
+          
+      - name: Initialization
+        run: |
+          sudo apt install yq -y 
+          JSON_STRING='${{ vars.BUILD_METADATA }}'
+
+          # push to collector
+          echo "TENANT_ID=$(echo "$JSON_STRING" | jq -r '.general.tenant')" >> "$GITHUB_ENV"
+          echo "TARGET_URI=$(echo "$JSON_STRING" | jq -r '.general.lazsaDomainUri')" >> "$GITHUB_ENV"
+          echo "AGENT_ID=$(echo "$JSON_STRING" | jq -r '.general.agentId')" >> "$GITHUB_ENV"
+          echo "AGENT_API_KEY=$(echo "$JSON_STRING" | jq -r '.general.agentApiKey')" >> "$GITHUB_ENV"
+          echo "DEVOPS_SETTING_ID=$(echo "$JSON_STRING" | jq -r '.general.devopsSettingId')" >> "$GITHUB_ENV"
+         
+          echo "REGISTRY_URL=$(echo "$JSON_STRING" | jq -r '.general.containerImagePath')" >> "$GITHUB_ENV"
+          echo "BUILD_TAG=$(echo "$JSON_STRING" | jq -r '.general.containerImageTag')"  >> "$GITHUB_ENV"
+          echo "ARTIFACTORY=$(echo "$JSON_STRING" | jq -r '.general.artifactory')"  >> "$GITHUB_ENV"
+          echo "RELEASE_NAME=$(echo "$JSON_STRING" | jq -r '.general.name')"  >> "$GITHUB_ENV"
+          echo "CONTEXT=$(echo "$JSON_STRING" | jq -r '.general.contextPath')" >> "$GITHUB_ENV"
+          echo "DEPLOYMENT_TYPE=$(echo "$JSON_STRING" | jq -r '.general.deploymentType')" >> "$GITHUB_ENV"
+          
+          echo "HELM_RELEASE_NAME=$(echo "$JSON_STRING" | jq -r '.general.helmReleaseName')" >> "$GITHUB_ENV"
+          echo "KUBE_NAMESPACE=$(echo "$JSON_STRING" | jq -r '.kubernetes.namespace')" >> "$GITHUB_ENV"
+          echo "ARTIFACTORY_USER_SECRET=$(echo "$JSON_STRING" | jq -r '.general.ArtifactoryUserSecret')" >> "$GITHUB_ENV"
+          echo "ARTIFACTORY_PASSWORD_SECRET=$(echo "$JSON_STRING" | jq -r '.general.ArtifactoryPasswordSecret')" >> "$GITHUB_ENV"
+          export REGISTRY_URL="$(echo "$JSON_STRING" | jq -r '.general.containerImagePath')"
+          echo "DOCKER_LOGIN_URL=$(echo "$REGISTRY_URL" | cut -d'/' -f1)" >> "$GITHUB_ENV"
+          echo "ACTION=$(echo "$JSON_STRING" | jq -r '.general.action')" >> "$GITHUB_ENV"
+          
+          #promotion workflow
+          echo "PROMOTE_SOURCE=$(echo "$JSON_STRING" | jq -r '.general.promoteSource')" >> "$GITHUB_ENV"
+          echo "PROMOTE_SOURCE_ARTIFACTORY_USER_SECRET=$(echo "$JSON_STRING" | jq -r '.general.promoteSourceArtifactoryUserSecret')" >> "$GITHUB_ENV"
+          echo "PROMOTE_SOURCE_ARTIFACTORY_PASSWORD_SECRET(echo "$JSON_STRING" | jq -r '.general.promoteSourceArtifactoryPasswordSecret')" >> "$GITHUB_ENV"
+          echo "PROMOTE_SOURCE_ARTIFACTORY_TYPE=$(echo "$JSON_STRING" | jq -r '.general.promoteSourceArtifactoryType')" >> "$GITHUB_ENV"
+          echo "PROMOTE_TAG=$(echo "$JSON_STRING" | jq -r '.general.promoteTag')" >> "$GITHUB_ENV"
+          echo "ROLLBACK_TAG=$(echo "$JSON_STRING" | jq -r '.general.rollbackTag')" >> "$GITHUB_ENV"
+          
+          echo "$JSON_STRING" | jq -r '.kubernetes' | yq --yaml-output > Helm.yaml
+          #fuctional test
+          echo "TESTCASEREPOSITORYURL=$(echo "$JSON_STRING" | jq -r '.general.testcaseRepositoryUrl')" >> "$GITHUB_ENV"
+          echo "TESTCASEREPOSITORYBRANCH=$(echo "$JSON_STRING" | jq -r '.general.testcaseRepositoryBranch')" >> "$GITHUB_ENV"
+          #echo "SOURCECODECREDENTIALID=$(echo "$JSON_STRING" | jq -r '.general.sourceCodeCredentialId')" >> "$GITHUB_ENV"
+          echo "TESTCASECOMMAND=$(echo "$JSON_STRING" | jq -r '.general.testcaseCommand')" >> "$GITHUB_ENV"
+          echo "TESTINGTOOLTYPE=$(echo "$JSON_STRING" | jq -r '.general.testingToolType')" >> "$GITHUB_ENV"
+          echo "BROWSERTYPE=$(echo "$JSON_STRING" | jq -r '.general.browserType')" >> "$GITHUB_ENV"
+          echo "INGRESS_HOST=$(echo "$JSON_STRING" | jq -r '.kubernetes.ingress.hosts[0]')" >> "$GITHUB_ENV"
+          echo "INGRESS_ADDRESS=$(echo "$JSON_STRING" | jq -r '.general.ingressAddress')" >> "$GITHUB_ENV"
+          export TESTCASEREPOSITORYURL=$(echo "$JSON_STRING" | jq -r '.general.testcaseRepositoryUrl')
+          echo "TESTCASE_REPO_PATH=$(echo "$TESTCASEREPOSITORYURL" | cut -d'/' -f4-5 | sed 's/.git$//')" >> "$GITHUB_ENV"
+
+      
+     
+      - name: Checkout testcase repo
+        uses: actions/checkout@v2
+        with:
+          repository: ${{ env.TESTCASE_REPO_PATH }}
+          ref: ${{ env.TESTCASEREPOSITORYBRANCH }}
+          path: ./testcaseRepo
+          
+      - name: Functional Testing
+        run: |
+          liveurl=""
+          if [[ "$DEPLOYMENT_TYPE" = "KUBERNETES" ]]; then    
+            if [[ "$INGRESS_HOST" != "null" ]]; then      
+              liveurl="$INGRESS_HOST"
+            else
+              liveurl="$INGRESS_ADDRESS"
+            fi
+            echo "liveurl in kubernetes: $liveurl"
+          elif [[ "$DEPLOYMENT_TYPE" = "EC2" ]]; then
+            liveurl="$DOCKERHOST:$SERVICE_PORT"
+            echo "liveurl in ec2: $liveurl"
+          fi
+      
+          echo "SITE_URL under test: http://$liveurl$CONTEXT/"
+          echo "$liveurl"
+      
+          runSeleniumTest() {  
+            $TESTCASECOMMAND -DSITE_URL=http://$liveurl$CONTEXT/ > maven_test.out || true
+            cat maven_test.out
+            grep "^\[INFO\|^\[ERROR\] Tests run: " maven_test.out | cut -c 8- | awk 'BEGIN { for(i=1;i<=5;i++) printf "*+"; } {printf "%s", $0 } END { for(i=1;i<=5;i++) printf "*+"; }'
+          }
+      
+          runCypressTest() {
+            cat <<EOL > test.sh
+          #!/bin/bash
+          
+          rm -rf node_modules/ mochawesome-report/ cypress/videos/ cypress/screenshots/
+          apt-get update && apt-get install -y libgbm-dev
+          npm install --save-dev mochawesome mochawesome-merge
+          npm install
+          
+          
+          case "$TESTCASECOMMAND" in
+            *env*)
+                echo 'case env'
+                $TESTCASECOMMAND applicationUrl=http://${liveurl}$CONTEXT/ --browser $BROWSERTYPE --reporter mochawesome --reporter-options overwrite=false,html=false,json=true,charts=true
+                ;;
+            *)
+                echo 'case else'
+                $TESTCASECOMMAND -- --env applicationUrl=http://${liveurl}$CONTEXT/ --browser $BROWSERTYPE --reporter mochawesome --reporter-options overwrite=false,html=false,json=true,charts=true
+                ;;
+          esac
+
+          
+          npx mochawesome-merge mochawesome-report/*.json > mochawesome-report/output.json
+          npx marge mochawesome-report/output.json mochawesome-report --inline
+          EOL
+            chmod +x test.sh
+            echo "mywork: $GITHUB_WORKSPACE"
+            ls -al $GITHUB_WORKSPACE/
+            ls -al $GITHUB_WORKSPACE/testcaseRepo/
+            docker run -v "$GITHUB_WORKSPACE"/testcaseRepo:/app -w /app -e applicationUrl=http://${liveurl}$CONTEXT/ cypress/browsers:node14.19.0-chrome100-ff99-edge /bin/bash -c "./test.sh > test.out || true"
+            cat test.out
+      
+            awk 'BEGIN { for(i=1;i<=5;i++) printf "*+"; } 
+            /(^[ ]*✖.+(failed|pended|pending|skipped|skipping)|^[ ]*✔[ ]+All specs passed).+/ {
+              for(i=4;i>=0;i--) switch (i) {
+                case 4: if( $(NF-i) ~ /^[0-9]/ ){printf "Tests run: " $(NF-i) ", ";} else{printf "Tests run: 0, " ;}  break;
+                case 3: if( $(NF-i) ~ /^[0-9]/ ){printf "Passed: " $(NF-i) ", ";} else{printf "Passed: 0, "} break;
+                case 2: if( $(NF-i) ~ /^[0-9]/ ){printf "Failures: " $(NF-i) ", ";} else{printf "Failures: 0, "}  break;
+                case 1: if( $(NF-i) ~ /^[0-9]/ ){printf "Pending: " $(NF-i) ", ";} else{printf "Pending: 0, "} break;
+                case 0: if( $(NF-i) ~ /^[0-9]/ ){printf "Skipped: " $(NF-i)} else{printf "Skipped: 0"} break;
+              }
+            } END { for(i=1;i<=5;i++) printf "*+"; }' test.out
+      
+            pwd
+          }
+      
+          cd testcaseRepo
+          if [[ "$TESTINGTOOLTYPE" == "selenium" ]]; then
+            runSeleniumTest
+            echo "REPORT_PATH=testcaseRepo/target/surefire-reports" >> "$GITHUB_ENV"
+            echo "XML_REPORT_PATH=testcaseRepo/target/surefire-reports/*.xml" >> "$GITHUB_ENV"
+          elif [[ "$TESTINGTOOLTYPE" == "cypress" ]]; then
+            echo "current directory: $PWD"
+            ls -al
+            runCypressTest
+            echo "REPORT_PATH=testcaseRepo/mochawesome-report" >> "$GITHUB_ENV"
+            
+          fi
+        shell: bash
+
+          
+  
+      - name: Upload HTML Report as Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: html-report
+          path: ${{ env.REPORT_PATH }}
+
+      - name: Publish Test Results
+        if: env.TESTINGTOOLTYPE == 'selenium'
+        uses: dorny/test-reporter@v1
+        with:
+          name: JUnit Tests
+          path: ${{ env.XML_REPORT_PATH }}
+          reporter: java-junit
