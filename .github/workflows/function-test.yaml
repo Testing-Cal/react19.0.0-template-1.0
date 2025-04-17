@@ -153,7 +153,7 @@ jobs:
           if [[ "$TESTINGTOOLTYPE" == "selenium" ]]; then
             runSeleniumTest
             echo "REPORT_PATH=testcaseRepo/target/surefire-reports" >> "$GITHUB_ENV"
-            echo "XML_REPORT_PATH=testcaseRepo/target/surefire-reports/*.xml" >> "$GITHUB_ENV"
+            echo "XML_REPORT_PATH=testcaseRepo/target/surefire-reports/junitreports/*.xml" >> "$GITHUB_ENV"
           elif [[ "$TESTINGTOOLTYPE" == "cypress" ]]; then
             echo "current directory: $PWD"
             ls -al
