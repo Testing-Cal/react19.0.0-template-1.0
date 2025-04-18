@@ -47,7 +47,7 @@ jobs:
           
       - name: Deploy to Kubernetes
         run: |
-           echo "DOCKER_LOGIN_URL=$(echo "$REGISTRY_URL" | cut -d'/' -f1)" >> "$GITHUB_ENV"
+           DOCKER_LOGIN_URL=$(echo "$REGISTRY_URL" | cut -d'/' -f1)
            docker run --rm  --user root -v "$HOME/.kube/config":"/.kube/config" -e KUBECONFIG="/.kube/config" $KUBECTL_IMAGE_VERSION create ns "$KUBE_NAMESPACE" || true
            if [[ $DEPLOYMENT_TYPE == 'OPENSHIFT' ]]
            then
