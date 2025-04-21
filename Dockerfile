@@ -34,7 +34,7 @@ COPY ./server.js /react-ui
 WORKDIR /react-ui
 
 # USER lazsa
-RUN npm install express
+RUN npm install express@4.21.2
 #CMD ["REACT_APP_CONTEXT=${CONTEXT} node server.js"]
 #CMD ["REACT_APP_CONTEXT=${CONTEXT} ", "node", "server.js"]
 CMD REACT_APP_CONTEXT=${CONTEXT} node server.js
