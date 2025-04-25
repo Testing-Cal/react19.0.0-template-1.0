@@ -3,9 +3,10 @@ on: [push, workflow_dispatch]
 
 jobs:
   continuous-integration:
-    runs-on: ${{ vars.RUNNER_NAME_DEV }}
     environment:
       name: Dev
+    runs-on: ${{ vars.RUNNER_NAME_DEV }}
+    
     env:
       CI_IMAGE: ${{ vars.CI_IMAGE }}
       KUBECTL_IMAGE_VERSION: "bitnami/kubectl:1.28" #https://hub.docker.com/r/bitnami/kubectl/tags
